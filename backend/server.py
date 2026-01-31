@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sqlite3
 
@@ -29,6 +30,14 @@ init_db()
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 def home():
@@ -46,3 +55,19 @@ def data_logger(data: Log):
     conn.commit()
     conn.close()
     return {"message": "Data Received"}
+
+
+@app.get("/logs")
+def get_logs():
+    conn = sqlite3.connect("gridmon.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 10")
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    data = [dict(row) for row in rows]
+
+    return data
