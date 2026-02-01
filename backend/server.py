@@ -1,73 +1,75 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import sqlite3
-
-
-class Log(BaseModel):
-    cpu_usage: float
-    memory_usage: float
-    timestamp: str
-    status: str
-
-
-def init_db():
-    try:
-        conn = sqlite3.connect("gridmon.db")
-        print("Database created")
-    except:
-        print("Database not created.")
-
-    cursor = conn.cursor()
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY AUTOINCREMENT, node_id VARCHAR(50) DEFAULT 'Laptop1', cpu_usage FLOAT, memory_usage FLOAT, timestamp VARCHAR(50), status VARCHAR(50));"
-    )
-    conn.commit()
-    conn.close()
-
-
-init_db()
+from data_exporter import engine, SessionLocal, Base, Log
+from sqlalchemy.orm import Session
+import joblib
+import pandas as pd
+import os
 
 app = FastAPI()
+
+MODEL_PATH = "model.pkl"
+model = None
+
+if os.path.exists(MODEL_PATH):
+    print("AI Engine: Loading model...")
+    model = joblib.load(MODEL_PATH)
+    print("AI Engine: Online")
+else:
+    print("AI Engine: Model not found.")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+Base.metadata.create_all(bind=engine)
 
-@app.get("/")
-def home():
-    return {"message": "Headquarters is on, LESGOOOOOOO!!"}
+
+class LogRequest(BaseModel):
+    cpu_usage: float
+    memory_usage: float
+    disk_usage: float
 
 
 @app.post("/log")
-def data_logger(data: Log):
-    insert_query = "INSERT INTO logs(cpu_usage, memory_usage, timestamp, status) VALUES (?, ?, ?, ?)"
-    conn = sqlite3.connect("gridmon.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        insert_query, (data.cpu_usage, data.memory_usage, data.timestamp, data.status)
+def receive_log(log_data: LogRequest):
+    db: Session = SessionLocal()
+
+    is_anomaly = False
+    if model:
+        features = pd.DataFrame(
+            [[log_data.cpu_usage, log_data.memory_usage]],
+            columns=["cpu_usage", "memory_usage"],
+        )
+        prediction = model.predict(features)[0]
+
+        if prediction == -1:
+            is_anomaly = True
+            print(
+                f"NOMALY DETECTED! CPU: {log_data.cpu_usage}% | RAM: {log_data.memory_usage}%"
+            )
+        else:
+            print(f"Normal: {log_data.cpu_usage}%")
+
+    new_log = Log(
+        cpu_usage=log_data.cpu_usage,
+        memory_usage=log_data.memory_usage,
+        disk_usage=log_data.disk_usage,
     )
-    conn.commit()
-    conn.close()
-    return {"message": "Data Received"}
+    db.add(new_log)
+    db.commit()
+    db.close()
+
+    return {"status": "Logged", "anomaly": is_anomaly}
 
 
 @app.get("/logs")
 def get_logs():
-    conn = sqlite3.connect("gridmon.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 10")
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    data = [dict(row) for row in rows]
-
-    return data
+    db = SessionLocal()
+    logs = db.query(Log).order_by(Log.timestamp.desc()).limit(20).all()
+    db.close()
+    return logs

@@ -29,7 +29,7 @@ function App() {
 
   return (
     <div className="dashboard" style={{ padding: '20px', backgroundColor: '#222', minHeight: '100vh', color: 'white' }}>
-      <h1>GridMon Dashboard</h1>
+      <h1>GridMon Dashboard (v1.0 AI)</h1>
       
       <div className="card" style={{ background: '#333', padding: '20px', borderRadius: '10px', marginTop: '20px' }}>
         <h2>Live System Performance</h2>
@@ -45,8 +45,14 @@ function App() {
                 itemStyle={{ color: '#fff' }}
               />
               <Legend />
+              {/* CPU Line (Purple) */}
               <Line type="monotone" dataKey="cpu_usage" stroke="#8884d8" strokeWidth={2} dot={false} name="CPU %" />
+              
+              {/* Memory Line (Green) */}
               <Line type="monotone" dataKey="memory_usage" stroke="#82ca9d" strokeWidth={2} dot={false} name="RAM %" />
+              
+              {/* NEW: Disk Line (Orange) */}
+              <Line type="monotone" dataKey="disk_usage" stroke="#ff7300" strokeWidth={2} dot={false} name="DISK %" />
             </LineChart>
           </ResponsiveContainer>
         </div>

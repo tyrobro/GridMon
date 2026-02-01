@@ -1,22 +1,19 @@
-import sqlite3
-import pandas as pd
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+
+DATABASE_URL = "sqlite:///./gridmon.db"
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 
-def exporter():
-    conn = sqlite3.connect("gridmon.db")
-    df = pd.read_sql_query("SELECT * FROM logs", conn)
-
-    conn.close()
-
-    print(f"Total records harvested: {len(df)}")
-
-    if len(df) < 50:
-        print("Not enough data.")
-    else:
-        df.to_csv("training_data.csv", index=False)
-        print("Data has been exported.")
-        print(df.head())
-
-
-if __name__ == "__main__":
-    exporter()
+class Log(Base):
+    __tablename__ = "logs"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    cpu_usage = Column(Float)
+    memory_usage = Column(Float)
+    disk_usage = Column(Float)
