@@ -1,17 +1,30 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from data_exporter import engine, SessionLocal, Base, Log
-from sqlalchemy.orm import Session
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 import joblib
 import pandas as pd
 import os
+from datetime import datetime, timezone
 
 app = FastAPI()
 
+INFLUX_URL = "http://localhost:8086"
+INFLUX_TOKEN = "b0MhbTatD-FdDY9jtiP2dUgdEeW1WfgNflbnN2V8TQT-cKdubGCK0K1u1HxZV3la_MV2W3md-TQb8PRlWR3IoQ=="
+INFLUX_ORG = "GridMon"
+INFLUX_BUCKET = "grid_metrics"
+
+
+try:
+    client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+    write_api = client.write_api(write_options=SYNCHRONOUS)
+    print("Database connected to InfluxDB")
+except Exception as e:
+    print(f"Database Error: {e}")
+
 MODEL_PATH = "model.pkl"
 model = None
-
 if os.path.exists(MODEL_PATH):
     print("AI Engine: Loading model...")
     model = joblib.load(MODEL_PATH)
@@ -26,8 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
-
 
 class LogRequest(BaseModel):
     cpu_usage: float
@@ -37,7 +48,6 @@ class LogRequest(BaseModel):
 
 @app.post("/log")
 def receive_log(log_data: LogRequest):
-    db: Session = SessionLocal()
 
     is_anomaly = False
     if model:
@@ -55,21 +65,19 @@ def receive_log(log_data: LogRequest):
         else:
             print(f"Normal: {log_data.cpu_usage}%")
 
-    new_log = Log(
-        cpu_usage=log_data.cpu_usage,
-        memory_usage=log_data.memory_usage,
-        disk_usage=log_data.disk_usage,
+    point = (
+        Point("system_metrics")
+        .tag("host", "my_primary_pc")
+        .field("cpu", log_data.cpu_usage)
+        .field("memory", log_data.memory_usage)
+        .field("disk", log_data.disk_usage)
+        .field("anomaly_detected", 1 if is_anomaly else 0)
+        .time(datetime.now(timezone.utc))
     )
-    db.add(new_log)
-    db.commit()
-    db.close()
+    try:
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+        print(f"Logged to InfluxDB: {log_data.cpu_usage}")
+    except Exception as e:
+        print(f"Write Error: {e}")
 
-    return {"status": "Logged", "anomaly": is_anomaly}
-
-
-@app.get("/logs")
-def get_logs():
-    db = SessionLocal()
-    logs = db.query(Log).order_by(Log.timestamp.desc()).limit(20).all()
-    db.close()
-    return logs
+    return {"stats": "Logged", "anomaly": is_anomaly}

@@ -14,6 +14,7 @@ if __name__ == "__main__":
     print(f"WARNING: Attacking all {cores} cores.")
     print(" Press CTRL+C immediately to stop.")
     time.sleep(2)
+
     with multiprocessing.Pool(cores) as p:
         try:
             p.map(attack_core, range(cores))

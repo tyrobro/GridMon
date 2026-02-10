@@ -208,3 +208,15 @@ __marimo__/
 
 
 *.csv
+
+# Ignore InfluxDB binaries
+*.exe
+influxdb2-*/
+
+# Ignore Python virtual environment
+venv/
+.venv/
+
+# Ignore the AI models and data
+*.pkl
+*.csv
