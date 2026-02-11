@@ -1,198 +1,182 @@
-# GridMon: AI-Powered Distributed System Monitor
+# 🛡️ GridMon: Enterprise Distributed System Monitor
 
-**Version 1.0** | Real-time infrastructure monitoring with integrated anomaly detection
-
-GridMon is a full-stack, distributed monitoring system designed to track high-performance computing metrics in real-time. It integrates an unsupervised machine learning model (Isolation Forest) directly into the ingestion pipeline to detect and flag anomalies—such as stress tests, crypto-mining malware, or hardware failures—the instant they occur.
+**GridMon** is a real-time, AI-powered observability platform designed to monitor distributed infrastructure. It ingests high-frequency telemetry (CPU, RAM, Disk) from multiple servers, detects anomalies using an Isolation Forest (Machine Learning), and visualizes the health of the fleet.
 
 ---
 
-## Features
+## 🚀 Architecture
 
-**Real-Time Telemetry**  
-Captures CPU, memory, and disk usage from a lightweight Python agent running on target machines.
-
-**AI Anomaly Detection**  
-Uses an unsupervised machine learning model (Scikit-Learn Isolation Forest) to learn normal system behavior and flag statistical outliers automatically.
-
-**Persistent Logging**  
-Stores every heartbeat in a local SQLite database for historical analysis and debugging.
-
-**Live Dashboard**  
-React-based frontend providing interactive visualization of live telemetry and anomaly states.
-
-**Distributed Architecture**  
-Decoupled agent, server, and dashboard components allow monitoring of remote machines across the local network.
+1. **Agent Layer:** Python-based collectors (`psutil`) running on edge nodes.
+2. **Ingestion Layer:** FastAPI backend that validates and tags incoming streams.
+3. **Intelligence Layer:** Scikit-Learn Isolation Forest (v2.0) detecting 3D anomalies in real-time.
+4. **Storage Layer:** InfluxDB v2 (Time-Series Database) for high-speed persistence.
+5. **Visualization:** Grafana (Coming Soon).
 
 ---
 
-## Architecture Overview
+## 🛠️ Setup & Installation
 
-```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   Agent     │ ──HTTP──▶│   Backend   │◀──HTTP──│  Dashboard  │
-│  (Python)   │         │  (FastAPI)  │         │   (React)   │
-│             │         │      +      │         │             │
-│  psutil     │         │  AI Engine  │         │  Recharts   │
-└─────────────┘         └─────────────┘         └─────────────┘
-                              │
-                              ▼
-                        ┌─────────────┐
-                        │   SQLite    │
-                        │  Database   │
-                        └─────────────┘
+### 1. Prerequisites
+
+- Python 3.9+
+- InfluxDB v2.x (Running on `localhost:8086`)
+
+### 2. Installation
+
+```bash
+git clone https://github.com/tyrobro/GridMon.git
+cd GridMon
+python -m venv venv
+
+# Windows:
+.\venv\Scripts\activate
+
+# Linux/Mac:
+source venv/bin/activate
+
+pip install -r requirements.txt
 ```
 
-**Component Responsibilities:**
+---
 
-- **Agent**: Lightweight collector running on each monitored machine, gathering system metrics every few seconds
-- **Backend**: REST API server handling data ingestion, AI inference, and database operations
-- **Database**: Local file-based storage (SQLite) for all telemetry logs
-- **AI Engine**: Isolation Forest model for real-time anomaly scoring
-- **Dashboard**: Interactive web interface for visualizing metrics and anomaly alerts
+## 🏃 Running the System
+
+### Step 1: Start the Backend (The Brain)
+
+```bash
+uvicorn backend.server:app --reload
+```
+
+The backend will start on `http://localhost:8000` and handle:
+- Data ingestion from agents
+- Real-time anomaly detection
+- Data persistence to InfluxDB
+
+### Step 2: Start the Agent (Single Node Mode)
+
+```bash
+python agent/monitor.py
+```
+
+This starts a single agent that monitors the local machine and sends telemetry to the backend every few seconds.
+
+### Step 3: Start the Fleet Simulator (Load Testing)
+
+```bash
+python agent/fleet_simulator.py
+```
+
+Simulates 10 concurrent servers sending data to test system performance under load.
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 GridMon/
 ├── agent/
-│   └── monitor.py          # Metrics collector and sender
+│   ├── monitor.py           # Single-node telemetry agent
+│   └── fleet_simulator.py   # Multi-node load testing simulator
 ├── backend/
-│   ├── server.py           # REST API + AI integration
-│   ├── ai_engine.py        # Model training script
-│   ├── training_data.csv   # Historical data for training
-│   └── model.pkl           # Serialized AI model (binary)
-├── frontend/
-│   ├── src/
-│   │   └── App.jsx         # Dashboard logic and UI
-│   └── package.json        # Frontend dependencies
+│   ├── server.py            # FastAPI ingestion & AI engine
+│   ├── ai_engine.py         # Model training script
+│   ├── training_data.csv    # Historical training data
+│   └── model.pkl            # Serialized Isolation Forest model
+├── requirements.txt         # Python dependencies
 └── README.md
 ```
 
 ---
 
-## Quick Start Guide
-
-### Prerequisites
-
-- Python 3.9 or higher
-- Node.js and npm
-- Basic familiarity with terminal/command line
-
-### 1. Backend Setup
-
-The backend handles data ingestion and AI analysis.
-
-```bash
-cd backend
-pip install fastapi uvicorn scikit-learn pandas sqlalchemy
-
-# Start the server (creates gridmon.db automatically on first run)
-uvicorn server:app --host 0.0.0.0 --port 8000 --reload
-```
-
-The backend will be accessible at `http://localhost:8000`.
-
-### 2. Agent Setup
-
-Run the agent on each machine you want to monitor.
-
-```bash
-cd agent
-pip install psutil requests
-
-# Ensure SERVER_URL in monitor.py matches your backend IP
-python monitor.py
-```
-
-The agent will begin sending telemetry data every few seconds.
-
-### 3. Dashboard Setup
-
-Launch the visualization interface.
-
-```bash
-cd frontend
-npm install
-npm run dev -- --host
-```
-
-Access the dashboard at `http://localhost:5173`.
-
----
-
-## Technology Stack
+## 🔧 Technology Stack
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | Agent | Python, psutil | Lightweight metrics collection |
 | Backend | FastAPI, Uvicorn | REST API for ingestion and AI scoring |
-| Database | SQLite (SQLAlchemy) | Local file-based storage |
+| Database | InfluxDB v2 | Time-series data storage |
 | AI Engine | Scikit-Learn | Isolation Forest anomaly detection |
-| Frontend | React, Recharts | Interactive data visualization |
+| Visualization | Grafana (planned) | Enterprise-grade dashboards |
 
 ---
 
-## Current Limitations
+## 🎯 Key Features
 
-While functional, the v1.0 prototype has several critical bottlenecks that prevent production deployment:
+**Real-Time Anomaly Detection**  
+Machine learning model flags statistical outliers (stress tests, crypto-mining, hardware failures) the instant they occur.
 
-**Minimal Training Data**  
-The AI model (model.pkl) was trained on only ~1,000 data points (approximately 15 minutes of usage). This leads to "paranoid AI" behavior, where legitimate high-load tasks are often misclassified as anomalies.
+**Distributed Architecture**  
+Decoupled components allow monitoring of remote machines across networks. Agents, backend, and database can run on separate hosts.
 
-**Database Locking**  
-SQLite is a file-based database that cannot handle concurrent writes from multiple agents. If two agents send logs simultaneously, the database locks and the system crashes.
+**Time-Series Optimized**  
+InfluxDB handles high-velocity writes and provides automatic data retention policies, eliminating the storage growth problem of v1.0.
 
-**Synchronous Blocking**  
-The backend runs AI inference and database writes in the same thread. During high load, this causes API latency to spike, slowing down the monitoring itself.
-
-**No Data Retention Policy**  
-The database grows indefinitely. In a real data center, this would fill the disk within days.
-
-**Hardcoded Configuration**  
-IP addresses and port numbers are hardcoded in the agent and frontend, making deployment to new environments tedious and error-prone.
+**Production-Ready Stack**  
+Migration from SQLite to InfluxDB enables concurrent writes from multiple agents without database locking.
 
 ---
 
-## Future Roadmap (v2.0)
+## 📊 How It Works
 
-To address the limitations above, the following upgrades are planned:
+### Data Collection
+Agents use Python's `psutil` library to gather CPU usage, memory consumption, and disk I/O metrics. These metrics are packaged as JSON and sent to the backend via HTTP POST requests.
 
-**Migration to InfluxDB**  
-Replace SQLite with a dedicated time-series database to handle high-velocity writes and automatic data expiry.
+### Anomaly Detection
+When the backend receives telemetry data, it passes the metrics through a pre-trained Isolation Forest model. The model assigns an anomaly score based on how different the current metrics are from learned normal behavior. Scores above the threshold trigger anomaly flags.
 
-**Grafana Integration**  
-Replace the React dashboard with Grafana for enterprise-grade visualization, alerting, and plugin support.
-
-**Asynchronous Processing**  
-Move AI inference to a background worker (using Redis/Celery) to prevent API blocking and improve throughput.
-
-**Expanded Training Set**  
-Collect 24 hours of diverse workload data to retrain the Isolation Forest for improved accuracy and reduced false positives.
-
-**Configuration Management**  
-Implement environment variables and configuration files to eliminate hardcoded values and simplify deployment.
-
-**Multi-Tenancy Support**  
-Add user authentication and per-organization data isolation for shared hosting environments.
+### Storage and Analysis
+All telemetry data—including timestamps, metrics, and anomaly flags—is stored in InfluxDB for historical analysis, trend detection, and future visualization in Grafana.
 
 ---
 
-## How It Works
+## 🚦 System Requirements
 
-**Data Collection**  
-The agent uses Python's `psutil` library to gather CPU usage, memory consumption, and disk I/O metrics. These metrics are packaged as JSON and sent to the backend via HTTP POST requests.
-
-**Anomaly Detection**  
-When the backend receives telemetry data, it passes the metrics through a pre-trained Isolation Forest model. The model assigns an anomaly score based on how different the current metrics are from the learned normal behavior. A score above a threshold triggers an anomaly flag.
-
-**Storage and Visualization**  
-All telemetry data—including timestamps, metrics, and anomaly flags—is stored in SQLite. The dashboard queries this data via the backend's REST API and displays it using interactive charts.
+- **CPU:** 2+ cores recommended for backend
+- **RAM:** 4GB minimum, 8GB recommended
+- **Disk:** 10GB for InfluxDB data retention
+- **Network:** Low-latency connection between agents and backend
 
 ---
 
-## Educational Purpose
+## 🔮 Roadmap
+
+**v2.0 (Current)**
+- ✅ InfluxDB integration for time-series storage
+- ✅ Fleet simulator for load testing
+- ✅ Improved Isolation Forest model
+- 🚧 Grafana dashboard integration
+
+**v3.0 (Planned)**
+- Asynchronous processing with Redis/Celery
+- Multi-tenancy with authentication
+- Custom alerting rules and webhooks
+- Distributed tracing integration
+
+---
+
+## 📝 License
+
+MIT License. See LICENSE file for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions, bug reports, and feature requests are welcome via GitHub issues and pull requests.
+
+---
+
+## 💬 Support
+
+For questions or issues:
+
+- Open an issue on GitHub
+- Consult the inline code documentation
+- Review the architecture diagram above
+
+---
+
+## 🏆 Educational Purpose
 
 GridMon was created for the "Build an AI Center" educational track. It demonstrates:
 
@@ -200,25 +184,3 @@ GridMon was created for the "Build an AI Center" educational track. It demonstra
 - Designing distributed architectures with multiple communicating components
 - Building full-stack applications with modern web technologies
 - Understanding the trade-offs between rapid prototyping and production-ready systems
-
----
-
-## License
-
-MIT License. See LICENSE file for details.
-
----
-
-## Contributing
-
-This is an educational project. Contributions, bug reports, and feature requests are welcome via GitHub issues and pull requests.
-
----
-
-## Support
-
-For questions or issues:
-
-- Open an issue on GitHub
-- Consult the inline code documentation
-- Review the v2.0 roadmap for planned improvements
