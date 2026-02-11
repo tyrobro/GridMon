@@ -1,24 +1,28 @@
+import os
+from dotenv import load_dotenv  # <--- Import this
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.write_api import ASYNCHRONOUS
 import joblib
 import pandas as pd
-import os
 from datetime import datetime, timezone
+
+load_dotenv()
 
 app = FastAPI()
 
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "b0MhbTatD-FdDY9jtiP2dUgdEeW1WfgNflbnN2V8TQT-cKdubGCK0K1u1HxZV3la_MV2W3md-TQb8PRlWR3IoQ=="
-INFLUX_ORG = "GridMon"
-INFLUX_BUCKET = "grid_metrics"
+INFLUX_URL = os.getenv("INFLUX_URL")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+INFLUX_ORG = os.getenv("INFLUX_ORG")
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 
-
+if not INFLUX_TOKEN:
+    raise ValueError("INFLUX_TOKEN is missing from .env file!")
 try:
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-    write_api = client.write_api(write_options=SYNCHRONOUS)
+    write_api = client.write_api(write_options=ASYNCHRONOUS)
     print("Database connected to InfluxDB")
 except Exception as e:
     print(f"Database Error: {e}")
@@ -75,10 +79,7 @@ def receive_log(log_data: LogRequest):
         .field("anomaly_detected", 1 if is_anomaly else 0)
         .time(datetime.now(timezone.utc))
     )
-    try:
-        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-        print(f"Logged to InfluxDB: {log_data.cpu_usage}")
-    except Exception as e:
-        print(f"Write Error: {e}")
+
+    write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
     return {"stats": "Logged", "anomaly": is_anomaly}
