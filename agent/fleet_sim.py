@@ -35,5 +35,5 @@ def run_fake_server(server_id):
 
 if __name__ == "__main__":
     print("🛰️ Launching 10 virtual servers...")
-    for i in range(10):
+    for i in range(5):
         multiprocessing.Process(target=run_fake_server, args=(i,)).start()
