@@ -1,19 +1,21 @@
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+import psutil
+import pandas as pd
+import time
 
-DATABASE_URL = "sqlite:///./gridmon.db"
+print("collecting data for training purposes.")
+print("keep using your computer as you would.")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+data = []
+try:
+    while True:
+        cpu = psutil.cpu_percent(interval=1)
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage("/").percent
+        data.append([cpu, ram, disk])
 
+except KeyboardInterrupt:
+    print("Stopping early...")
 
-class Log(Base):
-    __tablename__ = "logs"
-    id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    cpu_usage = Column(Float)
-    memory_usage = Column(Float)
-    disk_usage = Column(Float)
+df = pd.DataFrame(data, columns=["cpu_usage", "memory_usage", "disk_usage"])
+df.to_csv("training_data_2.csv", index=False)
+print("Data collection complete. File saved: training_data_2.csv")

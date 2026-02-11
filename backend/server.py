@@ -44,6 +44,7 @@ class LogRequest(BaseModel):
     cpu_usage: float
     memory_usage: float
     disk_usage: float
+    host_name: str
 
 
 @app.post("/log")
@@ -52,22 +53,22 @@ def receive_log(log_data: LogRequest):
     is_anomaly = False
     if model:
         features = pd.DataFrame(
-            [[log_data.cpu_usage, log_data.memory_usage]],
-            columns=["cpu_usage", "memory_usage"],
+            [[log_data.cpu_usage, log_data.memory_usage, log_data.disk_usage]],
+            columns=["cpu_usage", "memory_usage", "disk_usage"],
         )
         prediction = model.predict(features)[0]
 
         if prediction == -1:
             is_anomaly = True
             print(
-                f"NOMALY DETECTED! CPU: {log_data.cpu_usage}% | RAM: {log_data.memory_usage}%"
+                f"NOMALY DETECTED! CPU: {log_data.cpu_usage}% | RAM: {log_data.memory_usage}% | DISK: {log_data.disk_usage}%"
             )
         else:
             print(f"Normal: {log_data.cpu_usage}%")
 
     point = (
         Point("system_metrics")
-        .tag("host", "my_primary_pc")
+        .tag("host", log_data.host_name)
         .field("cpu", log_data.cpu_usage)
         .field("memory", log_data.memory_usage)
         .field("disk", log_data.disk_usage)

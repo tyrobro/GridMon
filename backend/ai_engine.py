@@ -6,8 +6,8 @@ import joblib
 def train_brain():
     print("Loading Data")
     try:
-        df = pd.read_csv("training_data.csv")
-        features = ["cpu_usage", "memory_usage"]
+        df = pd.read_csv("training_data_2.csv")
+        features = ["cpu_usage", "memory_usage", "disk_usage"]
         X = df[features]
 
         print("Data Info:")
@@ -21,8 +21,8 @@ def train_brain():
         joblib.dump(model, "model.pkl")
         print("Model trained and saved to model.pkl")
 
-        test_normal = pd.DataFrame([(5.0, 40.0)], columns=features)
-        test_crazy = pd.DataFrame([(99.9, 90.0)], columns=features)
+        test_normal = pd.DataFrame([(5.0, 40.0, 0.5)], columns=features)
+        test_crazy = pd.DataFrame([(99.9, 90.0, 3)], columns=features)
 
         print(f"Test Normal {test_normal}: {model.predict(test_normal)}")
         print(f"Test crazy {test_crazy}: {model.predict(test_crazy)}")
