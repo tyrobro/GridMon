@@ -220,3 +220,5 @@ venv/
 # Ignore the AI models and data
 *.pkl
 *.csv
+
+grafana/

@@ -45,6 +45,7 @@ class LogRequest(BaseModel):
     memory_usage: float
     disk_usage: float
     host_name: str
+    latency: float = 0.0
 
 
 @app.post("/log")
@@ -63,8 +64,6 @@ def receive_log(log_data: LogRequest):
             print(
                 f"NOMALY DETECTED! CPU: {log_data.cpu_usage}% | RAM: {log_data.memory_usage}% | DISK: {log_data.disk_usage}%"
             )
-        else:
-            print(f"Normal: {log_data.cpu_usage}%")
 
     point = (
         Point("system_metrics")
@@ -72,6 +71,7 @@ def receive_log(log_data: LogRequest):
         .field("cpu", log_data.cpu_usage)
         .field("memory", log_data.memory_usage)
         .field("disk", log_data.disk_usage)
+        .field("latency", log_data.latency)
         .field("anomaly_detected", 1 if is_anomaly else 0)
         .time(datetime.now(timezone.utc))
     )
