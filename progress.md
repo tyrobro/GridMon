@@ -5,4 +5,5 @@
 
 | Step | Optimization | Component | Latency Before | Latency After | Delta |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 0 | Baseline | All | ~150ms avg | - | - |
+| 0 | Baseline (Synchronous DB, TCP Handshakes) | All | ~200ms avg | - | - |
+| 1 | TCP Connection Pooling (`requests.Session`) | Agent Layer | ~200ms | ~175ms | -125ms |
