@@ -7,9 +7,8 @@ from pydantic import BaseModel
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import ASYNCHRONOUS
 import joblib
-import pandas as pd
 from datetime import datetime, timezone
-
+import warnings
 
 logging.basicConfig(
     filename="server_errors.log",
@@ -64,12 +63,15 @@ def receive_log(log_data: LogRequest):
     is_anomaly = False
     if model:
         try:
-            features = pd.DataFrame(
-                [[log_data.cpu_usage, log_data.memory_usage, log_data.disk_usage]],
-                columns=["cpu_usage", "memory_usage", "disk_usage"],
-            )
-            prediction = model.predict(features)[0]
+            # Pass raw Python list instead of a heavy DataFrame
+            raw_features = [
+                [log_data.cpu_usage, log_data.memory_usage, log_data.disk_usage]
+            ]
 
+            # Suppress scikit-learn's warning about missing feature names
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                prediction = model.predict(raw_features)[0]
             if prediction == -1:
                 is_anomaly = True
                 print(
