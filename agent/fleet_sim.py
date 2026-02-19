@@ -11,6 +11,8 @@ def run_fake_server(server_id):
     base_cpu = random.uniform(10, 30)
     last_latency = 0.0
 
+    session = requests.Session()
+
     while True:
         cpu = max(0, min(100, base_cpu + random.uniform(-5, 5)))
         ram = random.uniform(40, 60)
@@ -31,15 +33,19 @@ def run_fake_server(server_id):
         try:
             start_time = time.time()
 
-            requests.post(SERVER_URL, json=payload, timeout=1)
+            session.post(SERVER_URL, json=payload, timeout=1)
 
             last_latency = (time.time() - start_time) * 1000
+        except Exception as e:
+            last_latency = 0.0
 
-        except:
-            pass
+        time.sleep(1)
 
 
 if __name__ == "__main__":
-    print("Fleet v2.1: Latency Tracking Active...")
+    print("Fleet v2.2: Persistent Connections Active...")
+    processes = []
     for i in range(10):
-        multiprocessing.Process(target=run_fake_server, args=(i,)).start()
+        p = multiprocessing.Process(target=run_fake_server, args=(i,))
+        p.start()
+        processes.append(p)

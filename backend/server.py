@@ -1,4 +1,5 @@
 import os
+import logging
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,12 @@ import joblib
 import pandas as pd
 from datetime import datetime, timezone
 
+
+logging.basicConfig(
+    filename="server_errors.log",
+    level=logging.ERROR,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 load_dotenv()
 
 app = FastAPI()
@@ -20,17 +27,16 @@ INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 
 if not INFLUX_TOKEN:
     raise ValueError("INFLUX_TOKEN is missing from .env file!")
+
 try:
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = client.write_api(write_options=ASYNCHRONOUS)
-    print("Database connected to InfluxDB")
 except Exception as e:
     print(f"Database Error: {e}")
 
 MODEL_PATH = "model.pkl"
 model = None
 if os.path.exists(MODEL_PATH):
-    print("AI Engine: Loading model...")
     model = joblib.load(MODEL_PATH)
     print("AI Engine: Online")
 else:
@@ -57,17 +63,20 @@ def receive_log(log_data: LogRequest):
 
     is_anomaly = False
     if model:
-        features = pd.DataFrame(
-            [[log_data.cpu_usage, log_data.memory_usage, log_data.disk_usage]],
-            columns=["cpu_usage", "memory_usage", "disk_usage"],
-        )
-        prediction = model.predict(features)[0]
-
-        if prediction == -1:
-            is_anomaly = True
-            print(
-                f"NOMALY DETECTED! CPU: {log_data.cpu_usage}% | RAM: {log_data.memory_usage}% | DISK: {log_data.disk_usage}%"
+        try:
+            features = pd.DataFrame(
+                [[log_data.cpu_usage, log_data.memory_usage, log_data.disk_usage]],
+                columns=["cpu_usage", "memory_usage", "disk_usage"],
             )
+            prediction = model.predict(features)[0]
+
+            if prediction == -1:
+                is_anomaly = True
+                print(
+                    f"ANOMALY DETECTED:{log_data.host_name}! CPU: {log_data.cpu_usage}% | RAM: {log_data.memory_usage}% | DISK: {log_data.disk_usage}%"
+                )
+        except Exception as e:
+            logging.error(f"AI Inference Error: {e}")
 
     point = (
         Point("system_metrics")
@@ -79,7 +88,12 @@ def receive_log(log_data: LogRequest):
         .field("anomaly_detected", 1 if is_anomaly else 0)
         .time(datetime.now(timezone.utc))
     )
-
-    write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-
-    return {"stats": "Logged", "anomaly": is_anomaly}
+    try:
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+        return {"stats": "Logged", "anomaly": is_anomaly}
+    except InfluxDBError as e:
+        logging.error(f"InfluxDB Write Error: {e}")
+        raise HTTPException(status_code=503, detail="Database Unavailable")
+    except Exception as e:
+        logging.error(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
