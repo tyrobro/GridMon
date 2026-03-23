@@ -33,7 +33,7 @@ try:
 except Exception as e:
     print(f"Database Error: {e}")
 
-MODEL_PATH = "model.pkl"
+MODEL_PATH = "backend/model.pkl"
 model = None
 if os.path.exists(MODEL_PATH):
     model = joblib.load(MODEL_PATH)
@@ -63,12 +63,10 @@ def receive_log(log_data: LogRequest):
     is_anomaly = False
     if model:
         try:
-            # Pass raw Python list instead of a heavy DataFrame
             raw_features = [
                 [log_data.cpu_usage, log_data.memory_usage, log_data.disk_usage]
             ]
 
-            # Suppress scikit-learn's warning about missing feature names
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
                 prediction = model.predict(raw_features)[0]
