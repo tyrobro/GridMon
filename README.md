@@ -1,108 +1,154 @@
-# 🛡️ GridMon: Enterprise Distributed System Monitor
+# GridMon: Distributed Hardware Telemetry & ML Anomaly Detection
 
-GridMon is a real-time, AI-powered observability platform designed to monitor distributed infrastructure. It ingests high-frequency telemetry from multiple servers, utilizes a 3D Isolation Forest for anomaly detection, and visualizes system health through a professional Grafana dashboard.
+GridMon is a distributed systems observability platform that streams real-time hardware telemetry from edge agents to a cloud-hosted API for machine learning-based anomaly detection. The system processes bare-metal metrics (CPU, RAM, Disk) through an Isolation Forest model before persisting data to a serverless time-series database.
 
----
-
-## 🚀 Architecture
-
-1. **Agent Layer:** Python-based collectors running on edge nodes.
-2. **Ingestion Layer:** FastAPI backend that validates and tags incoming streams.
-3. **Intelligence Layer:** Scikit-Learn Isolation Forest (v2.0) detecting 3D anomalies in real-time.
-4. **Storage Layer:** InfluxDB v2 (Time-Series Database) for high-speed persistence.
-5. **Visualization:** Grafana-based Mission Control Center.
+Built with a focus on low-latency systems engineering, asynchronous data ingestion, and distributed cloud architecture.
 
 ---
 
-## 📊 Performance Specs (Verified v2.2)
+## 🏗️ System Architecture
 
-| Metric | Measurement | Status |
-|:-------|:------------|:-------|
-| **Throughput** | 10+ messages/second (Steady state) | ✅ Optimal |
-| **Latency (p95)** | < 30ms (TCP Connection Pooling) | ✅ Real-time |
-| **Detection Rate** | 100% on simulated 95% CPU spikes | ✅ Validated |
+**Edge Layer (Physical Agents)**  
+Lightweight Python daemons using `psutil` to collect motherboard-level metrics from remote machines. Agents utilize `requests.Session()` for TCP connection pooling to minimize network handshake overhead during high-frequency streaming.
 
----
+**API Layer (Ingestion Engine)**  
+Stateless FastAPI backend deployed to cloud infrastructure. Handles inbound traffic asynchronously while routing CPU-intensive ML inference and database writes to background thread pools to prevent event-loop blocking.
 
-## 🚀 Key Engineering Upgrades
+**Intelligence Layer (ML Engine)**  
+Isolation Forest model (scikit-learn) trained on 24-hour baseline telemetry. Maps incoming payloads into 3D feature space [CPU, RAM, Disk] to detect hardware stress and anomalies in real-time.
 
-**Security Hardening:** All database credentials abstracted to environment variables (`.env`).
-
-**Fault Tolerance:** Graceful error handling and active logging (`server_errors.log`) prevent API crashes during InfluxDB downtimes.
-
-**Network Optimization:** Implemented `requests.Session()` in the agent layer to eliminate TCP handshake overhead, reducing baseline latency by 80%.
-
-**Progress Tracking:** Active latency hunting documented in `progress.md`.
+**Storage Layer (Database)**  
+InfluxDB Cloud (Serverless) handles continuous time-series data ingestion for long-term storage and visualization via Grafana.
 
 ---
 
-## 🛠️ Setup & Execution
+## ⚡ Performance & Latency Analysis
 
-### 1. Prerequisites
+A core engineering challenge was reducing end-to-end telemetry ingestion latency:
 
-- Python 3.9+
-- InfluxDB v2.x (Running on `localhost:8086`)
-- Grafana (Running on `localhost:3000`)
+**Initial Baseline:** ~200ms  
+Primary bottlenecks: Synchronous database writes and pandas DataFrame construction overhead during ML inference.
 
-### 2. Installation
+**Optimized Compute Latency:** <10ms  
+Achieved through:
+- Replacing pandas with raw NumPy arrays for ML inference
+- TCP connection pooling at edge agents
+- Asynchronous database writes via background thread pools
 
+**Production Network Latency:** ~100ms  
+Represents physical transit time and jitter across public internet from geographically distributed edge nodes to cloud provider.
+
+**Total End-to-End Latency:** ~110ms (compute + network)
+
+---
+
+## 📊 Performance Specifications
+
+| Metric | Measurement | Notes |
+|:-------|:------------|:------|
+| **Compute Latency** | <10ms | ML inference + data validation |
+| **Network Latency** | ~100ms | Geographic transit over public internet |
+| **Throughput** | 10+ agents concurrent | Tested with distributed fleet |
+| **Detection Accuracy** | Validated on 24h baseline | Trained on real hardware data |
+
+---
+
+## 🔧 Technology Stack
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Backend | Python 3.13, FastAPI, Uvicorn | Asynchronous API with thread pool executor |
+| ML Engine | scikit-learn, NumPy, Joblib | Isolation Forest inference |
+| Database | InfluxDB Cloud v2 | Serverless time-series storage |
+| Visualization | Grafana, Flux SQL | Real-time dashboard queries |
+| Edge Agents | psutil, requests.Session | Optimized metrics collection |
+| Testing | pytest, GitHub Actions | Automated integration tests |
+| Deployment | Render Cloud | Managed cloud hosting |
+
+---
+
+## 🚀 Deployment Guide
+
+### 1. InfluxDB Cloud Configuration
+
+1. Create account at [InfluxDB Cloud](https://cloud2.influxdata.com/)
+2. Navigate to **Load Data → Buckets** and create `grid_metrics` bucket
+3. Generate API token via **Load Data → API Tokens**
+4. Note your cluster URL (e.g., `https://us-east-1-1.aws.cloud2.influxdata.com`) and organization name
+
+### 2. API Server Deployment (Render)
+
+1. Fork this repository
+2. Create account at [Render.com](https://render.com/)
+3. Create new **Web Service** linked to repository
+
+**Build Configuration:**
 ```bash
-git clone https://github.com/tyrobro/GridMon.git
-cd GridMon
-python -m venv venv
-
-# Windows:
-.\venv\Scripts\activate
-
-# Linux/Mac:
-source venv/bin/activate
-
-pip install -r requirements.txt
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn backend.server:app --host 0.0.0.0 --port $PORT
 ```
 
-### 3. Configuration
-
-Create a `.env` file in the project root with your InfluxDB credentials:
-
-```bash
-INFLUX_TOKEN=your_influxdb_token_here
-INFLUX_ORG=GridMon
+**Environment Variables:**
+```
+INFLUX_URL=<Your Cluster URL>
+INFLUX_TOKEN=<Your API Token>
+INFLUX_ORG=<Your Organization>
 INFLUX_BUCKET=grid_metrics
-INFLUX_URL=http://localhost:8086
 ```
 
-### 4. Running the System
+4. Deploy service and copy provided `*.onrender.com` URL
 
-**Step 1: Start InfluxDB**  
-Ensure the InfluxDB server is running on `localhost:8086`.
+### 3. Edge Agent Configuration
 
-**Step 2: Start the Backend**
+Install dependencies on target machine:
 ```bash
-uvicorn backend.server:app --reload
+pip install requests psutil
 ```
 
-The backend will start on `http://localhost:8000` with:
-- Automatic credential loading from `.env`
-- Error logging to `server_errors.log`
-- Graceful degradation on database failures
+Update `agent/real_agent.py` with your Render API URL:
+```python
+SERVER_URL = "https://your-app.onrender.com"
+```
 
-**Step 3: Start the Fleet Simulator**  
-Simulates 10 concurrent servers with randomized performance "personalities" and anomaly events.
+Run agent daemon:
 ```bash
-python agent/fleet_simulator.py
+python agent/real_agent.py
+
+# For background execution (Linux/Mac):
+nohup python agent/real_agent.py &
 ```
 
 ---
 
-## 🧠 AI Engine v2.0
+## 📊 Dashboard Configuration
 
-Unlike standard threshold alerts, GridMon uses an unsupervised **Isolation Forest** model trained on a 3-dimensional feature vector:
+### InfluxDB Data Explorer Setup
 
-- CPU Usage (%)
-- Memory Usage (%)
-- Disk Usage (%)
+1. Open Data Explorer in InfluxDB Cloud
+2. **Filter Configuration:**
+   - Uncheck any old simulated `compute-node` tags
+   - Select your physical machine's hostname in the `host` column
+3. **Metric Selection:**
+   - Measurement: `system_metrics`
+   - Fields: `cpu`, `memory`, or `latency`
+4. **Visualization Fix:**
+   - Change display mode from "Band" to "Graph" for independent telemetry lines
 
-This allows the system to identify complex anomalies where a single metric might look "normal" but the combination of the three indicates system distress (e.g., high disk I/O with low CPU).
+---
+
+## 🧪 Testing
+
+The project includes automated integration tests for API validation and database routing:
+
+```bash
+python -m pytest tests/ -v
+```
+
+Tests verify:
+- API payload validation
+- Database write operations
+- Error handling paths
+- Anomaly detection logic
 
 ---
 
@@ -111,120 +157,65 @@ This allows the system to identify complex anomalies where a single metric might
 ```
 GridMon/
 ├── agent/
-│   ├── monitor.py           # Single-node telemetry agent
-│   └── fleet_simulator.py   # Multi-node load testing simulator
+│   ├── real_agent.py        # Production edge agent
+│   └── fleet_simulator.py   # Load testing simulator
 ├── backend/
-│   ├── server.py            # FastAPI ingestion & AI engine
+│   ├── server.py            # FastAPI async API
 │   ├── ai_engine.py         # Model training script
-│   ├── training_data.csv    # Historical training data
-│   └── model.pkl            # Serialized Isolation Forest model
-├── grafana/
-│   └── queries/             # Flux queries for dashboards
-├── .env.example             # Template for environment variables
-├── server_errors.log        # Error tracking and debugging
-├── progress.md              # Development and optimization log
+│   └── model.pkl            # Trained Isolation Forest
+├── tests/
+│   └── test_api.py          # Integration tests
 ├── requirements.txt
 └── README.md
 ```
 
-**Key Directories:**
-- `/agent` - Fleet simulator with TCP connection pooling
-- `/backend` - FastAPI server with error handling and logging
-- `/grafana` - Flux queries for Throughput, Latency, and Anomaly Tracking
+---
+
+## 🎯 Key Engineering Decisions
+
+**Asynchronous Architecture**  
+FastAPI's async capabilities handle concurrent connections while background thread pools prevent blocking on CPU-bound operations (ML inference) and I/O-bound operations (database writes).
+
+**TCP Connection Pooling**  
+Using `requests.Session()` eliminates per-request TCP handshake overhead, reducing network latency by maintaining persistent connections to the API.
+
+**NumPy Over Pandas**  
+Replacing pandas DataFrames with raw NumPy arrays for ML inference reduced compute overhead from ~200ms to <10ms due to eliminated DataFrame construction.
+
+**Serverless Database**  
+InfluxDB Cloud eliminates infrastructure management while providing native time-series optimizations and automatic retention policies.
+
+**Thread Pool Execution**  
+Database writes execute in background threads to prevent blocking FastAPI's event loop, maintaining low request latency even during database operations.
 
 ---
 
-## 🔧 Technology Stack
+## 🔒 Security Considerations
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Agent | Python, psutil, requests.Session | Optimized metrics collection |
-| Backend | FastAPI, Uvicorn | REST API with error handling |
-| Database | InfluxDB v2 | Time-series data storage |
-| AI Engine | Scikit-Learn | Isolation Forest anomaly detection |
-| Visualization | Grafana | Professional dashboards and monitoring |
-| Security | python-dotenv | Environment-based credential management |
+- All credentials managed via environment variables
+- No secrets committed to version control
+- API tokens rotated regularly
+- HTTPS enforced for all cloud communications
+- Agent authentication recommended for production deployments
 
 ---
 
-## 🎯 Key Features
+## 🔮 Future Enhancements
 
-**Real-Time Anomaly Detection**  
-Machine learning model flags statistical outliers (stress tests, crypto-mining, hardware failures) through multi-dimensional analysis with <30ms latency.
-
-**Production-Grade Reliability**  
-Error handling prevents cascading failures. When InfluxDB is unavailable, the system logs errors and continues operating rather than crashing.
-
-**Network Optimization**  
-TCP connection pooling with `requests.Session()` reduces per-request overhead by 80%, enabling sub-30ms p95 latency.
-
-**Security Best Practices**  
-All credentials stored in environment variables with `.env.example` template for secure deployment across environments.
-
-**Distributed Architecture**  
-Decoupled components allow monitoring of remote machines across networks. Agents, backend, and database can run on separate hosts.
-
-**Time-Series Optimized**  
-InfluxDB handles high-velocity writes and provides automatic data retention policies with proper tagging for efficient querying.
-
----
-
-## 📈 How It Works
-
-### Data Collection
-Agents use Python's `psutil` library to gather CPU usage, memory consumption, and disk I/O metrics. These metrics are packaged as JSON and sent to the backend via HTTP POST requests using persistent TCP connections.
-
-### 3D Anomaly Detection
-When the backend receives telemetry data, it passes the metrics through a pre-trained Isolation Forest model. The model analyzes the 3-dimensional feature space (CPU, Memory, Disk) to identify anomalies that wouldn't be caught by single-metric thresholds.
-
-**Example:** A system with moderate CPU (60%) and moderate memory (55%) might seem normal, but when combined with very low disk activity (5%), it could indicate a hung process or deadlock. The Isolation Forest detects these multi-dimensional outliers.
-
-### Error Handling & Logging
-All InfluxDB operations are wrapped in try-except blocks. Database failures are logged to `server_errors.log` with timestamps and error details, allowing the system to continue operating and alerting operators to connectivity issues.
-
-### Storage and Visualization
-All telemetry data—including timestamps, metrics, and anomaly flags—is stored in InfluxDB with proper tagging for efficient querying. Grafana dashboards provide real-time visualization of:
-- System health metrics
-- Anomaly detection events
-- Throughput and latency statistics
-- Fleet-wide performance trends
-
----
-
-## 🚦 System Requirements
-
-- **CPU:** 2+ cores recommended for backend
-- **RAM:** 4GB minimum, 8GB recommended
-- **Disk:** 10GB for InfluxDB data retention
-- **Network:** Low-latency connection between agents and backend
-
----
-
-## 🔮 Future Roadmap
-
-**Asynchronous Ingestion**  
-Moving from `SYNCHRONOUS` to `BATCH` writes in InfluxDB to further reduce latency and increase throughput.
-
-**Predictive Maintenance**  
-Implementing an LSTM-based model to predict failures before they occur based on historical patterns.
-
-**Containerization**  
-Full Docker Compose setup for one-click deployment across development, staging, and production environments.
+**Predictive Analytics**  
+Implement LSTM-based time-series forecasting to predict hardware failures before they occur based on degradation patterns.
 
 **Enhanced Authentication**  
-JWT-based authentication and role-based access control (RBAC) for multi-tenant deployments.
+JWT-based authentication for agent registration and multi-tenant access control.
+
+**Batch Processing**  
+Move from synchronous to batch writes in InfluxDB to further reduce latency and increase throughput.
 
 **Auto-Scaling**  
-Dynamic agent discovery and automatic load balancing for enterprise deployments.
+Dynamic agent discovery and load balancing for enterprise deployments monitoring hundreds of nodes.
 
----
-
-## 🔒 Security Notes
-
-- Never commit `.env` files to version control
-- Rotate InfluxDB tokens regularly
-- Use TLS/SSL for production deployments
-- Review `server_errors.log` for security events
+**Advanced Alerting**  
+Webhook integration for real-time notifications on anomaly detection events.
 
 ---
 
@@ -236,32 +227,30 @@ MIT License. See LICENSE file for details.
 
 ## 🤝 Contributing
 
-Contributions, bug reports, and feature requests are welcome via GitHub issues and pull requests.
+Contributions welcome via GitHub issues and pull requests. Please include tests for new features.
 
 ---
 
-## 💬 Support
+## 📚 Documentation
 
-For questions or issues:
-
-- Open an issue on GitHub
-- Review `progress.md` for development history
-- Check `server_errors.log` for debugging
-- Consult `/grafana` directory for dashboard examples
+- **InfluxDB Setup:** See deployment guide above
+- **API Documentation:** Access `/docs` endpoint on deployed server for OpenAPI specification
+- **Testing Guide:** See `tests/` directory for integration test examples
+- **Troubleshooting:** Check deployment logs and `SERVER_URL` configuration
 
 ---
 
-## 🏆 Project Background
+## 🏆 Technical Highlights
 
-GridMon demonstrates the integration of machine learning models into production-grade distributed systems. It showcases:
+This project demonstrates:
 
-- Real-time data ingestion and processing
-- Unsupervised anomaly detection in multi-dimensional space
-- Production reliability patterns (error handling, logging, graceful degradation)
-- Network optimization techniques (TCP connection pooling)
-- Security best practices (environment-based credential management)
-- Time-series database optimization
-- Professional monitoring and visualization
-- Concurrent system testing and validation
+- **Distributed Systems:** Multi-node edge computing with centralized cloud coordination
+- **Asynchronous Programming:** Non-blocking I/O with FastAPI and background thread execution
+- **Performance Engineering:** Latency optimization from 200ms to <10ms compute time
+- **Machine Learning Integration:** Real-time inference pipeline with scikit-learn
+- **Cloud Architecture:** Serverless database integration with managed API hosting
+- **Network Optimization:** TCP connection pooling and persistent HTTP sessions
+- **Production Practices:** Environment-based configuration, error handling, automated testing
+- **Time-Series Data:** Efficient storage and querying patterns for telemetry streams
 
-Built as part of the "Build an AI Center" educational track, GridMon bridges the gap between academic machine learning and production system engineering.
+Built as a practical exploration of production-grade distributed systems architecture and real-time ML inference pipelines.

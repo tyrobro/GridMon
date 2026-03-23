@@ -3,7 +3,7 @@ import time
 import random
 import multiprocessing
 
-SERVER_URL = "http://127.0.0.1:8000/log"
+SERVER_URL = "https://gridmon-api.onrender.com/log"
 
 
 def run_fake_server(server_id):

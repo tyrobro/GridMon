@@ -1,11 +1,12 @@
 import os
 import logging
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import ASYNCHRONOUS
+from influxdb_client.client.exceptions import InfluxDBError
 import joblib
 from datetime import datetime, timezone
 import warnings
@@ -27,11 +28,13 @@ INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 if not INFLUX_TOKEN:
     raise ValueError("INFLUX_TOKEN is missing from .env file!")
 
+write_api = None
 try:
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = client.write_api(write_options=ASYNCHRONOUS)
 except Exception as e:
     print(f"Database Error: {e}")
+    logging.error(f"Failed to initialize InfluxDB: {e}")
 
 MODEL_PATH = "backend/model.pkl"
 model = None
@@ -59,6 +62,8 @@ class LogRequest(BaseModel):
 
 @app.post("/log")
 def receive_log(log_data: LogRequest):
+    if not write_api:
+        raise HTTPException(status_code=503, detail="Database Not Initialized")
 
     is_anomaly = False
     if model:
@@ -70,6 +75,7 @@ def receive_log(log_data: LogRequest):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
                 prediction = model.predict(raw_features)[0]
+
             if prediction == -1:
                 is_anomaly = True
                 print(
@@ -88,9 +94,10 @@ def receive_log(log_data: LogRequest):
         .field("anomaly_detected", 1 if is_anomaly else 0)
         .time(datetime.now(timezone.utc))
     )
+
     try:
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-        return {"stats": "Logged", "anomaly": is_anomaly}
+        return {"status": "success", "anomaly": is_anomaly}
     except InfluxDBError as e:
         logging.error(f"InfluxDB Write Error: {e}")
         raise HTTPException(status_code=503, detail="Database Unavailable")
