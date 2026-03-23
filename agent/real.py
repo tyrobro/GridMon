@@ -7,7 +7,7 @@ SERVER_URL = "https://gridmon-api.onrender.com/log"
 
 HOSTNAME = socket.gethostname()
 
-print(f"🚀 Starting GridMon Physical Agent on node: {HOSTNAME}...")
+print(f"Starting GridMon Physical Agent on node: {HOSTNAME}...")
 
 session = requests.Session()
 
