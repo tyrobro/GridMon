@@ -7,4 +7,4 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | 0 | Baseline (Synchronous DB, TCP Handshakes) | All | ~200ms avg | - | - |
 | 1 | TCP Connection Pooling (`requests.Session`) | Agent Layer | ~200ms | ~25ms | -175ms |
-| 2 | Inference Optimization (Removed Pandas) | API Layer | ~25ms | ~20ms | -5ms |
+| 2 | Inference Optimization (Removed Pandas) | API Layer | ~25ms | ~15ms | -5ms |
